@@ -40,7 +40,7 @@ def digits_only(phone: str) -> str:
     return re.sub(r"[^\d]", "", phone)
 
 def strip_cc(phone: str):
-    """(cc, local_number) → ("998", "934434742")"""
+    """(cc, local_number) → ("998", "901234567")"""
     d = digits_only(phone)
     m = re.match(r"^(\d{1,3})(\d{7,12})$", d)
     if m:
