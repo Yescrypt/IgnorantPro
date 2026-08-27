@@ -113,25 +113,44 @@ async def check_instagram(session: aiohttp.ClientSession, phone: str):
             except Exception:
                 pass
 
-        # Fallback: forgot password flow
-        async with session.post(
+        # Fallback 1: account_recovery_send_ajax
+        fallback_endpoints = [
             "https://www.instagram.com/accounts/account_recovery_send_ajax/",
-            data=urllib.parse.urlencode({"phone_number": phone, "phone_or_email": phone}),
-            headers=headers, timeout=TIMEOUT,
-        ) as r:
-            if r.status == 429:
-                return "RATE_LIMIT"
-            text = await r.text()
-            if "obfuscated" in text or "phone" in text or r.status == 200:
-                try:
-                    j = json.loads(text)
-                    if j.get("status") == "ok":
+            "https://www.instagram.com/api/v1/accounts/send_recovery_flow_email/",
+        ]
+
+        for endpoint in fallback_endpoints:
+            try:
+                async with session.post(
+                    endpoint,
+                    data=urllib.parse.urlencode({
+                        "phone_number": phone,
+                        "phone_or_email": phone,
+                        "user_id": "",
+                    }),
+                    headers=headers, timeout=TIMEOUT,
+                ) as r:
+                    if r.status == 429:
+                        return "RATE_LIMIT"
+                    text = await r.text()
+
+                    # Aniq indicators
+                    if any(x in text for x in ["obfuscated", "We found", "sent", "success"]):
+                        try:
+                            j = json.loads(text)
+                            if j.get("status") == "ok":
+                                return "FOUND"
+                        except json.JSONDecodeError:
+                            pass
                         return "FOUND"
-                except Exception:
-                    pass
-            if "No users found" in text:
-                return "NOT_FOUND"
-            return "ERROR"
+
+                    if "No users found" in text or "not found" in text.lower():
+                        return "NOT_FOUND"
+
+            except (asyncio.TimeoutError, Exception):
+                continue
+
+        return "NOT_FOUND"
 
     except asyncio.TimeoutError:
         return "TIMEOUT"
@@ -281,37 +300,28 @@ async def check_whatsapp(session: aiohttp.ClientSession, phone: str):
             if r.status == 429:
                 return "RATE_LIMIT"
             text = await r.text()
-            # Agar WhatsApp raqamni topa olsa → "Continue to Chat" tugmasi bor
-            if "Continue to Chat" in text or "continue_to_chat" in text:
-                return "FOUND"
-            # Raqam WA da yo'q → "phone number shared via url is invalid"
-            if "invalid" in text.lower() or "phone number shared via url" in text.lower():
-                return "NOT_FOUND"
-            # Redirect bo'lsa ham tekshiramiz
             final = str(r.url)
-            if "invalid" in final or "error" in final:
-                return "NOT_FOUND"
-    except asyncio.TimeoutError:
-        pass
-    except Exception:
-        pass
 
-    # Metod 2: web.whatsapp.com
-    try:
-        async with session.get(
-            f"https://web.whatsapp.com/send?phone={d}",
-            headers={"User-Agent": CHROME_UA},
-            allow_redirects=True, timeout=TIMEOUT,
-        ) as r:
-            text = await r.text()
-            if "Continue to Chat" in text or "open_app" in text:
+            # Positive indicators
+            if any(x in text for x in ["Continue to Chat", "continue_to_chat", "open_app"]):
                 return "FOUND"
-            if "invalid" in text.lower():
-                return "NOT_FOUND"
-    except Exception:
-        pass
 
-    return "ERROR"
+            # Negative indicators
+            if any(x in text.lower() for x in ["invalid", "phone number shared via url is invalid", "error"]):
+                return "NOT_FOUND"
+            if any(x in final for x in ["invalid", "error"]):
+                return "NOT_FOUND"
+
+            # Final check: agar text o'zgargan bo'lsa (default message yo'q) → FOUND
+            if len(text) > 2000 and "app" in text.lower():
+                return "FOUND"
+
+            return "NOT_FOUND"
+
+    except asyncio.TimeoutError:
+        return "TIMEOUT"
+    except Exception:
+        return "ERROR"
 
 
 # ─────────────────────────────────────────────────────────
@@ -785,6 +795,7 @@ async def check_google(session: aiohttp.ClientSession, phone: str):
         if not (galx or gxf or at_tok):
             return "ERROR"
 
+        # Google simpler approach: phone identify
         pdata = urllib.parse.urlencode({
             "identifier": phone,
             "continue": "https://myaccount.google.com/",
@@ -796,34 +807,44 @@ async def check_google(session: aiohttp.ClientSession, phone: str):
             "_utf8": "☃",
             "bgresponse": "js_disabled",
         })
-        async with session.post(
-            "https://accounts.google.com/v3/signin/_/AccountsSignInUi/data/batchexecute",
-            data=urllib.parse.urlencode({
-                "f.req": json.dumps([[["nKjvib",
-                    json.dumps([phone, 1, [], None, []]), None, "generic"]]]),
-                "at": at_tok,
-            }),
-            headers={
-                "User-Agent": CHROME_UA,
-                "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
-                "Referer": "https://accounts.google.com/v3/signin/identifier",
-                "Origin": "https://accounts.google.com",
-                "X-Same-Domain": "1",
-            },
-            timeout=TIMEOUT,
-        ) as r:
-            if r.status == 429:
-                return "RATE_LIMIT"
-            text = await r.text()
-            # Google javobida "accounts.google.com" profilga redirect → FOUND
-            if '"accounts.google.com"' in text or "myaccount" in text:
-                return "FOUND"
-            # INVALID_ARGUMENT yoki reCAPTCHA
-            if "INVALID" in text or "recaptcha" in text.lower():
-                return "ERROR"
-            if r.status == 200 and len(text) > 100:
-                return "FOUND"
-            return "NOT_FOUND"
+        try:
+            async with session.post(
+                "https://accounts.google.com/v3/signin/_/AccountsSignInUi/data/batchexecute",
+                data=urllib.parse.urlencode({
+                    "f.req": json.dumps([[["nKjvib",
+                        json.dumps([phone, 1, [], None, []]), None, "generic"]]]),
+                    "at": at_tok,
+                }),
+                headers={
+                    "User-Agent": CHROME_UA,
+                    "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+                    "Referer": "https://accounts.google.com/v3/signin/identifier",
+                    "Origin": "https://accounts.google.com",
+                    "X-Same-Domain": "1",
+                },
+                timeout=TIMEOUT,
+            ) as r:
+                if r.status == 429:
+                    return "RATE_LIMIT"
+                text = await r.text()
+
+                # Positive indicators
+                if any(x in text for x in ['"accounts.google.com"', "myaccount", "SelectAuthMethod"]):
+                    return "FOUND"
+
+                # Negative indicators
+                if "recaptcha" in text.lower() or "INVALID_ARGUMENT" in text:
+                    return "ERROR"
+
+                # Fallback: agar javob bo'lsa normal → FOUND
+                if r.status == 200 and len(text) > 100 and "[" in text:
+                    return "FOUND"
+
+                return "NOT_FOUND"
+        except asyncio.TimeoutError:
+            return "TIMEOUT"
+        except Exception:
+            return "ERROR"
 
     except asyncio.TimeoutError:
         return "TIMEOUT"
