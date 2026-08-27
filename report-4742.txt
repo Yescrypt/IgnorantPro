@@ -1,0 +1,36 @@
+====================================================
+   IGNORANT PRO v4.0 — Report
+====================================================
+  Telefon raqam : +998934434742
+  Sana / Vaqt  : 2026-08-27 19:29:59
+  Tekshirilgan : 12 platform
+  Vaqt ketdi   : 20.01s
+====================================================
+
+[ BARCHA NATIJALAR ]
+----------------------------------------------------
+  Instagram     [?] Error
+  Telegram      [+] Phone number used
+  TikTok        [t] Timeout
+  WhatsApp      [+] Phone number used
+  Snapchat      [+] Phone number used
+  Twitter/X     [?] Error
+  Viber         [-] Phone number not used
+  OLX UZ        [+] Phone number used
+  Amazon        [+] Phone number used
+  Microsoft     [?] Error
+  LinkedIn      [-] Phone number not used
+  Google        [?] Error
+
+====================================================
+[ TOPILGAN PLATFORMALAR ]
+----------------------------------------------------
+  ✔  Telegram
+  ✔  WhatsApp
+  ✔  Snapchat
+  ✔  OLX UZ
+  ✔  Amazon
+
+====================================================
+  Jami topildi : 5 ta platform
+====================================================

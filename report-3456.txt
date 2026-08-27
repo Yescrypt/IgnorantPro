@@ -1,0 +1,26 @@
+====================================================
+   IGNORANT PRO v4.0 — Report
+====================================================
+  Telefon raqam : +99893123456
+  Sana / Vaqt  : 2026-08-27 19:30:20
+  Tekshirilgan : 4 platform
+  Vaqt ketdi   : 0.76s
+====================================================
+
+[ BARCHA NATIJALAR ]
+----------------------------------------------------
+  Telegram      [?] Error
+  WhatsApp      [+] Phone number used
+  Snapchat      [+] Phone number used
+  OLX UZ        [+] Phone number used
+
+====================================================
+[ TOPILGAN PLATFORMALAR ]
+----------------------------------------------------
+  ✔  WhatsApp
+  ✔  Snapchat
+  ✔  OLX UZ
+
+====================================================
+  Jami topildi : 3 ta platform
+====================================================

@@ -165,45 +165,70 @@ async def check_instagram(session: aiohttp.ClientSession, phone: str):
 # ─────────────────────────────────────────────────────────
 async def check_telegram(session: aiohttp.ClientSession, phone: str):
     try:
-        async with session.post(
-            "https://my.telegram.org/auth/send_password",
-            data=urllib.parse.urlencode({"phone": phone}),
-            headers={
-                "User-Agent": CHROME_UA,
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Referer": "https://my.telegram.org/auth",
-                "Origin": "https://my.telegram.org",
-                "X-Requested-With": "XMLHttpRequest",
-            },
-            timeout=TIMEOUT,
-        ) as r:
-            if r.status == 429:
-                return "RATE_LIMIT"
-            t = (await r.text()).strip()
+        # Retry logic for Telegram (unstable sometimes)
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                async with session.post(
+                    "https://my.telegram.org/auth/send_password",
+                    data=urllib.parse.urlencode({"phone": phone}),
+                    headers={
+                        "User-Agent": CHROME_UA,
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "Referer": "https://my.telegram.org/auth",
+                        "Origin": "https://my.telegram.org",
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                    timeout=TIMEOUT,
+                ) as r:
+                    if r.status == 429:
+                        return "RATE_LIMIT"
+                    t = (await r.text()).strip()
 
-            # Aniq javoblar
-            if t == "OK":
-                return "FOUND"
-            if "FLOOD" in t or "Too Many" in t:
-                return "RATE_LIMIT"
-            if "error" in t.lower() or "invalid" in t.lower() or "not exist" in t.lower():
-                return "NOT_FOUND"
+                    # CRITICAL FIX: Telegram har doim JSON response beradi!
+                    # {"random_hash":"..."} = RAQAM REGISTERED
+                    # {"error_message":"..."} = NOT FOUND
+                    try:
+                        j = json.loads(t)
+                        # Agar "random_hash" bo'lsa → raqam topildi
+                        if "random_hash" in j:
+                            return "FOUND"
+                        # Agar "error_message" bo'lsa → raqam yo'q
+                        if "error_message" in j:
+                            return "NOT_FOUND"
+                        # Boshqa JSON → analyze uchun
+                        if j.get("status") == "ok":
+                            return "FOUND"
+                        if j.get("error") or "error" in j:
+                            return "NOT_FOUND"
+                    except json.JSONDecodeError:
+                        pass
 
-            # Fallback: JSON response
-            if r.status == 200:
-                try:
-                    j = json.loads(t)
-                    if j.get("status") == "ok" or j.get("phone_registered"):
+                    # Plain text fallback (eski format uchun)
+                    if t == "OK" or "sent" in t.lower():
                         return "FOUND"
-                    if j.get("error"):
-                        return "NOT_FOUND"
-                except json.JSONDecodeError:
-                    pass
-                # Plain text "OK" bol 1-2 harf → FOUND
-                if len(t) < 20 and "ok" in t.lower():
-                    return "FOUND"
 
-            return "NOT_FOUND"
+                    # Rate limiting indicators
+                    if any(x in t.lower() for x in ["flood", "too many", "try again later", "sorry"]):
+                        return "RATE_LIMIT"
+
+                    if "error" in t.lower() or "invalid" in t.lower() or "not exist" in t.lower():
+                        return "NOT_FOUND"
+
+                    # Agar response bo'lsa lekin hech narsa match qilmasa → FOUND (success)
+                    if len(t) > 10:
+                        return "FOUND"
+
+                    return "ERROR"
+
+            except (asyncio.TimeoutError, aiohttp.ClientError) as e:
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(0.5)  # Retry after 500ms
+                    continue
+                if isinstance(e, asyncio.TimeoutError):
+                    return "TIMEOUT"
+                raise
+
     except asyncio.TimeoutError:
         return "TIMEOUT"
     except Exception:
@@ -299,21 +324,34 @@ async def check_whatsapp(session: aiohttp.ClientSession, phone: str):
         ) as r:
             if r.status == 429:
                 return "RATE_LIMIT"
+
             text = await r.text()
             final = str(r.url)
 
-            # Positive indicators
+            # CRITICAL FIX: WhatsApp page loading = VALID phone!
+            # - Valid raqam: 50KB+ HTML page load bo'ladi
+            # - Invalid raqam: small page yoki redirect
+
+            # Indicator 1: Large HTML response = normal page = FOUND
+            if len(text) > 50000:
+                return "FOUND"
+
+            # Indicator 2: Explicit positive markers
             if any(x in text for x in ["Continue to Chat", "continue_to_chat", "open_app"]):
                 return "FOUND"
 
-            # Negative indicators
-            if any(x in text.lower() for x in ["invalid", "phone number shared via url is invalid", "error"]):
+            # Indicator 3: Negative markers = NOT_FOUND
+            if any(x in text.lower() for x in ["invalid", "phone number shared via url is invalid"]):
                 return "NOT_FOUND"
             if any(x in final for x in ["invalid", "error"]):
                 return "NOT_FOUND"
 
-            # Final check: agar text o'zgargan bo'lsa (default message yo'q) → FOUND
-            if len(text) > 2000 and "app" in text.lower():
+            # Indicator 4: Small response = error page = NOT_FOUND
+            if len(text) < 1000 and r.status == 200:
+                return "NOT_FOUND"
+
+            # Default: agar ma'lumot yo'q → FOUND (page loaded successfully)
+            if r.status == 200 and len(text) > 5000:
                 return "FOUND"
 
             return "NOT_FOUND"
