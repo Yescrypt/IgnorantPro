@@ -27,8 +27,8 @@ init(autoreset=True)
 
 BANNER = f"""
 {Fore.CYAN}╔════════════════════════════════════════════════╗
-║  {Fore.WHITE}IGNORANT PRO v4.0{Fore.CYAN}  -  Phone Number OSINT Tool ║
-║  {Fore.YELLOW}12 platform  |  Yescrypt  |  Auto report   {Fore.CYAN}   ║
+║  {Fore.WHITE}IGNORANT PRO v4.1{Fore.CYAN}  -  Phone Number OSINT Tool ║
+║  {Fore.YELLOW}12 platforms | Async | Auto-report   {Fore.CYAN}       ║
 ╚════════════════════════════════════════════════╝{Style.RESET_ALL}
 """
 
@@ -47,8 +47,8 @@ def strip_cc(phone: str):
         return m.group(1), m.group(2)
     return d[:3], d[3:]
 
-TIMEOUT  = aiohttp.ClientTimeout(total=14)
-SHORT_TO = aiohttp.ClientTimeout(total=8)
+TIMEOUT  = aiohttp.ClientTimeout(total=15)
+SHORT_TO = aiohttp.ClientTimeout(total=9)
 
 CHROME_UA = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -161,14 +161,29 @@ async def check_telegram(session: aiohttp.ClientSession, phone: str):
             if r.status == 429:
                 return "RATE_LIMIT"
             t = (await r.text()).strip()
-            if t == "OK" or "sent" in t.lower():
+
+            # Aniq javoblar
+            if t == "OK":
                 return "FOUND"
-            if "FLOOD" in t:
+            if "FLOOD" in t or "Too Many" in t:
                 return "RATE_LIMIT"
             if "error" in t.lower() or "invalid" in t.lower() or "not exist" in t.lower():
                 return "NOT_FOUND"
-            if r.status == 200 and len(t) < 80:
-                return "FOUND"
+
+            # Fallback: JSON response
+            if r.status == 200:
+                try:
+                    j = json.loads(t)
+                    if j.get("status") == "ok" or j.get("phone_registered"):
+                        return "FOUND"
+                    if j.get("error"):
+                        return "NOT_FOUND"
+                except json.JSONDecodeError:
+                    pass
+                # Plain text "OK" bol 1-2 harf → FOUND
+                if len(t) < 20 and "ok" in t.lower():
+                    return "FOUND"
+
             return "NOT_FOUND"
     except asyncio.TimeoutError:
         return "TIMEOUT"
@@ -816,6 +831,21 @@ async def check_google(session: aiohttp.ClientSession, phone: str):
         return "ERROR"
 
 
+# ─────────────────────────────────────────────────────────
+#  EXTRA: Telegram username resolution
+#  t.me/username ga GET request → redirect yoki 404
+# ─────────────────────────────────────────────────────────
+async def resolve_telegram_username(session: aiohttp.ClientSession, phone_data: dict) -> str | None:
+    """
+    Agar Telegram'da raqam topilsa, usernamelari topilganlarni qaytaradi.
+    Bu advanced feature — faqat phone verified bo'lsagina qo'llaniladi.
+    """
+    # TODO: Telegram bot API ishlatish kerak (token kerak)
+    # Bu uchun phone dan username bo'lmaydi to'g'ridan-to'g'ri
+    # Lekin t.me redirect'ni test qilish mumkin
+    return None
+
+
 # ═══════════════════════════════════════════════════════════
 #   SITES REGISTRY
 # ═══════════════════════════════════════════════════════════
@@ -935,7 +965,12 @@ async def run_checks(phone: str, selected: list | None = None) -> dict:
             name: asyncio.create_task(func(session, phone))
             for name, func in sites.items()
         }
-        await asyncio.wait(list(tasks.values()), timeout=22)
+        # Har bir check 15 secondga limit + buffer
+        await asyncio.wait(
+            list(tasks.values()),
+            timeout=20,
+            return_when=asyncio.ALL_COMPLETED
+        )
 
         results = {}
         for name, task in tasks.items():
