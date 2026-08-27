@@ -28,7 +28,7 @@ init(autoreset=True)
 BANNER = f"""
 {Fore.CYAN}╔════════════════════════════════════════════════╗
 ║  {Fore.WHITE}IGNORANT PRO v4.1{Fore.CYAN}  -  Phone Number OSINT Tool ║
-║  {Fore.YELLOW}12 platforms | Async | Auto-report   {Fore.CYAN}       ║
+║  {Fore.YELLOW}12 platforms | Async | Auto-report   {Fore.CYAN}        ║
 ╚════════════════════════════════════════════════╝{Style.RESET_ALL}
 """
 
@@ -70,6 +70,10 @@ async def check_instagram(session: aiohttp.ClientSession, phone: str):
             headers={"User-Agent": CHROME_UA, "Accept-Language": "en-US,en;q=0.9"},
             timeout=TIMEOUT,
         ) as r:
+            if r.status == 500:
+                # Instagram API broken (2024-12)
+                return "ERROR"
+
             csrf = r.cookies.get("csrftoken", "")
             if not csrf:
                 txt = await r.text()
@@ -467,8 +471,15 @@ async def check_twitter(session: aiohttp.ClientSession, phone: str):
         ) as r:
             if r.status == 429:
                 return "RATE_LIMIT"
-            j = await r.json()
-            flow_token = j.get("flow_token", "")
+            if r.status == 403:
+                # Bearer token expired or blocked
+                return "ERROR"
+
+            try:
+                j = await r.json()
+                flow_token = j.get("flow_token", "")
+            except Exception:
+                return "ERROR"
 
         if not flow_token:
             return "ERROR"
@@ -685,6 +696,12 @@ async def check_microsoft(session: aiohttp.ClientSession, phone: str):
             text = await r.text()
             try:
                 j = json.loads(text)
+
+                # Check for error response
+                if j.get("ErrorHR"):
+                    # ErrorHR = error code (like 80046703)
+                    return "ERROR"
+
                 ier = j.get("IfExistsResult", -1)
                 if ier == 0:    # mavjud
                     return "FOUND"
@@ -694,8 +711,14 @@ async def check_microsoft(session: aiohttp.ClientSession, phone: str):
                     return "FOUND"
                 if ier == 5:    # throttled
                     return "RATE_LIMIT"
+
+                # Agar IfExistsResult yo'q → ERROR
+                if ier == -1:
+                    return "ERROR"
+
             except Exception:
                 pass
+
             if "IfExistsResult" in text:
                 return "NOT_FOUND"
             return "ERROR"
@@ -762,11 +785,19 @@ async def check_linkedin(session: aiohttp.ClientSession, phone: str):
             headers={"User-Agent": CHROME_UA, "Accept-Language": "en-US,en;q=0.9"},
             timeout=TIMEOUT,
         ) as r:
+            # Status 999 = LinkedIn anti-bot protection
+            if r.status == 999:
+                return "ERROR"
+
             text = await r.text()
             csrf_m = re.search(r'csrfToken=([^&"\']+)', text)
             csrf = csrf_m.group(1) if csrf_m else ""
             pi_m = re.search(r'"pageInstance":"([^"]+)"', text)
             pi = pi_m.group(1) if pi_m else ""
+
+        # Agar CSRF yo'q bo'lsa → ERROR (anti-bot activated)
+        if not csrf:
+            return "ERROR"
 
         pdata = urllib.parse.urlencode({
             "csrfToken": csrf,
@@ -786,7 +817,7 @@ async def check_linkedin(session: aiohttp.ClientSession, phone: str):
             },
             timeout=TIMEOUT, allow_redirects=True,
         ) as r:
-            if r.status == 429:
+            if r.status == 999 or r.status == 429:
                 return "RATE_LIMIT"
             final = str(r.url)
             text = await r.text()
@@ -908,6 +939,25 @@ async def resolve_telegram_username(session: aiohttp.ClientSession, phone_data: 
 # ═══════════════════════════════════════════════════════════
 #   SITES REGISTRY
 # ═══════════════════════════════════════════════════════════
+
+# Platform status (as of 2024-12-20)
+PLATFORM_STATUS = {
+    # WORKING
+    "WhatsApp":    "✅ WORKING",
+    "Snapchat":    "✅ WORKING",
+    "OLX UZ":      "✅ WORKING",
+    "Amazon":      "✅ WORKING",
+    # UNSTABLE/RATE LIMITED
+    "Telegram":    "⚠️  RATE_LIMITED",
+    "TikTok":      "⚠️  GEO_BLOCK",
+    "Viber":       "⚠️  UNSTABLE",
+    # BROKEN/API ISSUES
+    "Instagram":   "❌ API_DOWN",
+    "Twitter/X":   "❌ BEARER_TOKEN",
+    "Microsoft":   "❌ ERROR_RESPONSE",
+    "LinkedIn":    "❌ ANTI_BOT",
+    "Google":      "❌ RECAPTCHA",
+}
 
 SITES = {
     "Instagram":   check_instagram,
@@ -1104,8 +1154,14 @@ def main():
     if len(sys.argv) < 2:
         print(f"{Fore.YELLOW}Usage:{Style.RESET_ALL}")
         print(f"  python3 ignorant_pro.py +998941350269")
-        print(f"  python3 ignorant_pro.py +998941350269 --only Instagram,Telegram")
-        print(f"\n{Fore.CYAN}Platforms:{Style.RESET_ALL} {', '.join(SITES.keys())}")
+        print(f"  python3 ignorant_pro.py +998941350269 --only WhatsApp,Snapchat,OLX UZ,Amazon")
+        print(f"\n{Fore.GREEN}✅ RECOMMENDED (working):{Style.RESET_ALL}")
+        print(f"  WhatsApp, Snapchat, OLX UZ, Amazon")
+        print(f"\n{Fore.YELLOW}⚠️  UNSTABLE (may timeout/rate limit):{Style.RESET_ALL}")
+        print(f"  Telegram, TikTok, Viber")
+        print(f"\n{Fore.RED}❌ BROKEN (currently unavailable):{Style.RESET_ALL}")
+        print(f"  Instagram, Twitter/X, Microsoft, LinkedIn, Google")
+        print(f"\n{Fore.CYAN}All platforms:{Style.RESET_ALL} {', '.join(SITES.keys())}")
         sys.exit(0)
 
     phone = validate_phone(sys.argv[1])
