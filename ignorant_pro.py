@@ -28,7 +28,7 @@ init(autoreset=True)
 BANNER = f"""
 {Fore.CYAN}╔════════════════════════════════════════════════╗
 ║  {Fore.WHITE}IGNORANT PRO v4.1{Fore.CYAN}  -  Phone Number OSINT Tool ║
-║  {Fore.YELLOW}12 platforms | Async | Auto-report   {Fore.CYAN}        ║
+║  {Fore.YELLOW}12 platforms | Async | Auto-report   {Fore.CYAN}         ║
 ╚════════════════════════════════════════════════╝{Style.RESET_ALL}
 """
 
@@ -1153,8 +1153,8 @@ def main():
 
     if len(sys.argv) < 2:
         print(f"{Fore.YELLOW}Usage:{Style.RESET_ALL}")
-        print(f"  python3 ignorant_pro.py +998941350269")
-        print(f"  python3 ignorant_pro.py +998941350269 --only WhatsApp,Snapchat,OLX UZ,Amazon")
+        print(f"  python3 ignorant_pro.py +998901234567")
+        print(f"  python3 ignorant_pro.py +998901234567 --only WhatsApp,Snapchat,OLX UZ,Amazon")
         print(f"\n{Fore.GREEN}✅ RECOMMENDED (working):{Style.RESET_ALL}")
         print(f"  WhatsApp, Snapchat, OLX UZ, Amazon")
         print(f"\n{Fore.YELLOW}⚠️  UNSTABLE (may timeout/rate limit):{Style.RESET_ALL}")
@@ -1167,7 +1167,7 @@ def main():
     phone = validate_phone(sys.argv[1])
     if not phone:
         print(f"{Fore.RED}[!] Noto'g'ri format: {sys.argv[1]}{Style.RESET_ALL}")
-        print("    To'g'ri: +998941350269")
+        print("    To'g'ri: +998901234567")
         sys.exit(1)
 
     selected = None
