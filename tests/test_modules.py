@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 
 from ignorant.core.base import Result
+from ignorant.modules.amazon import AmazonChecker
 from ignorant.modules.instagram import InstagramChecker
 from ignorant.modules.linkedin import LinkedInChecker
 from ignorant.modules.microsoft import MicrosoftChecker
@@ -49,12 +50,39 @@ def test_microsoft_unknown():
 
 
 def test_microsoft_errorhr_is_error():
-    # v4.2 fix: ErrorHR bo'lsa → ERROR
+    # Umumiy ErrorHR → ERROR
     s = FakeSession([
         FakeResponse(200, '"uaid":"u1"'),
         FakeResponse(200, '{"ErrorHR": 80049217}'),
     ])
     assert run(MicrosoftChecker(), s) is Result.ERROR
+
+
+def test_microsoft_phone_unsupported_is_unknown():
+    # 80046703 = telefon qabul qilinmaydi → ERROR emas, halol UNKNOWN
+    s = FakeSession([
+        FakeResponse(200, '"uaid":"u1"'),
+        FakeResponse(200, '{"ErrorHR": "80046703"}'),
+    ])
+    assert run(MicrosoftChecker(), s) is Result.UNKNOWN
+
+
+# ─── Amazon: soxta FOUND olib tashlandi ─────────────────────────────
+def test_amazon_generic_page_is_unknown():
+    # REGRESSIYA: ikki xil raqamga ham "We found your account" FOUND berardi.
+    s = FakeSession([
+        FakeResponse(200, '<input name="appActionToken" value="t"><input name="metadata1" value="m">'),
+        FakeResponse(200, "<html>We found your account, verify...</html>"),
+    ])
+    assert run(AmazonChecker(), s) is Result.UNKNOWN
+
+
+def test_amazon_cannot_find_is_not_found():
+    s = FakeSession([
+        FakeResponse(200, '<input name="appActionToken" value="t">'),
+        FakeResponse(200, "<html>We cannot find an account</html>"),
+    ])
+    assert run(AmazonChecker(), s) is Result.NOT_FOUND
 
 
 # ─── Instagram / LinkedIn: API-down va anti-bot aniqlash ────────────
@@ -125,6 +153,12 @@ def test_olx_not_registered():
 def test_olx_200_without_field_is_unknown():
     # REGRESSIYA: eski kod har qanday 200 ni FOUND derdi.
     s = FakeSession([FakeResponse(200, '{"status": "ok"}')])
+    assert run(OlxUzChecker(), s) is Result.UNKNOWN
+
+
+def test_olx_404_is_unknown_not_negative():
+    # Endpoint yo'li o'zgargan (404) → soxta NOT_FOUND emas, UNKNOWN.
+    s = FakeSession([FakeResponse(404, "Not Found")])
     assert run(OlxUzChecker(), s) is Result.UNKNOWN
 
 

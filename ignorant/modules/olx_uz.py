@@ -24,7 +24,7 @@ class OlxUzChecker(BaseChecker):
     name = "OLX UZ"
     slug = "olx_uz"
     reliable = True
-    status = "✅ WORKING"
+    status = "❌ endpoint o'zgargan"
     phone_hint = "E.164, odatda +998XXXXXXXXX"
 
     async def check(self, session: aiohttp.ClientSession, phone: str) -> Outcome:
@@ -54,7 +54,9 @@ class OlxUzChecker(BaseChecker):
                 if reg is False:
                     return not_found("isRegistered=false")
 
+            # 404 = endpoint yo'li o'zgargan. Buni NOT_FOUND deb belgilash
+            # soxta-negative bo'lardi (barcha raqam "yo'q" chiqadi). Halol UNKNOWN.
             if r.status == 404:
-                return not_found("404")
+                return unknown("endpoint 404 — yo'l o'zgargan (DevTools bilan yangilash kerak)")
             # Eski `200 → FOUND` olib tashlandi (OTP yangi raqamga ham ketadi).
             return unknown("isRegistered maydoni yo'q")

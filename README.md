@@ -65,13 +65,13 @@ hollarda vosita **noto'g'ri FOUND/NOT_FOUND qaytarmaydi — halol UNKNOWN qaytar
 
 | Platforma | Kuzatilgan holat | Izoh |
 |-----------|------------------|------|
-| OLX UZ | ✅ WORKING | `isRegistered` maydoni — ishonchli |
-| Telegram | ⚠️ RATE_LIMITED | JSON `random_hash`/`error_message`; raqam egasiga kod yuboradi |
-| Microsoft | ⚠️ ERROR_RESPONSE | `IfExistsResult`; ba'zan `ErrorHR` |
+| Telegram | ⚠️ RATE_LIMITED | JSON `random_hash`/`error_message` — **ishlaydi**; raqam egasiga kod yuboradi |
+| Microsoft | ⚠️ email-only | `IfExistsResult`; telefon raqamni qo'llamaydi (`80046703`) |
 | TikTok | ⚠️ GEO_BLOCK / imzo | imzolangan parametr talab qiladi |
 | Viber | ⚠️ UNSTABLE | umumiy javob |
 | Snapchat | ⚠️ hardened | enumeration-hardened |
-| Amazon | ⚠️ hardened | enumeration-hardened |
+| OLX UZ | ❌ endpoint o'zgargan | eski `/api/open/auth/otp/` 404 — yangi yo'l kerak |
+| Amazon | ❌ soxta-positive | forgot-password har kimga "We found" deydi → FOUND o'chirildi |
 | Instagram | ❌ API_DOWN | lookup endpoint tez-tez 500/429 |
 | Twitter/X | ❌ BEARER/JS | JS-challenge / client-transaction-id kerak |
 | LinkedIn | ❌ ANTI_BOT | 999 anti-bot himoyasi |

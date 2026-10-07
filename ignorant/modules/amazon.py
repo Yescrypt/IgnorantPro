@@ -15,7 +15,7 @@ import urllib.parse
 
 import aiohttp
 
-from ignorant.core.base import BaseChecker, Outcome, found, not_found, rate_limit, unknown
+from ignorant.core.base import BaseChecker, Outcome, not_found, rate_limit, unknown
 from ignorant.core.http import CHROME_UA, TIMEOUT
 
 _TOK_RE = re.compile(r'name="appActionToken"\s+value="([^"]+)"')
@@ -26,7 +26,7 @@ class AmazonChecker(BaseChecker):
     name = "Amazon"
     slug = "amazon"
     reliable = False
-    status = "⚠️ hardened"
+    status = "❌ soxta-positive"
 
     async def check(self, session: aiohttp.ClientSession, phone: str) -> Outcome:
         async with session.get(
@@ -59,11 +59,15 @@ class AmazonChecker(BaseChecker):
         ) as r:
             if r.status == 429:
                 return rate_limit("429")
+            if r.status >= 500:
+                return unknown(f"Amazon {r.status} (bot-block)")
             text = await r.text()
             low = text.lower()
-            if "we found your account" in low or ("verify" in low and "sent" in low):
-                return found("We found your account")
-            if "we cannot find" in low or "no account" in low:
-                return not_found("We cannot find")
-            # Eski kodda noaniqda NOT_FOUND edi → endi UNKNOWN.
-            return unknown("umumiy javob (hardened)")
+            # MUHIM: Amazon forgot-password KIRITILGAN identifikator uchun
+            # maskalangan tiklash variantlarini ko'rsatadi — hisob bor-yo'qligidan
+            # qat'i nazar "We found your account" chiqishi mumkin. Shuning uchun
+            # bu matn ISHONCHLI signal EMAS (ikki xil raqamga ham FOUND bergan).
+            # FOUND ni butunlay olib tashladik — faqat aniq inkor signalini olamiz.
+            if "we cannot find" in low or "no account associated" in low:
+                return not_found("Amazon: cannot find")
+            return unknown("Amazon ishonchli existence-signal bermaydi")

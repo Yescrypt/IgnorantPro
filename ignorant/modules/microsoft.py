@@ -78,9 +78,14 @@ class MicrosoftChecker(BaseChecker):
                 j = json.loads(await r.text())
             except (json.JSONDecodeError, ValueError):
                 return unknown("JSON emas")
-            # v4.2 dan: ErrorHR bo'lsa — Microsoft xato qaytargan (masalan throttle).
-            if j.get("ErrorHR"):
-                return error(f"ErrorHR={j.get('ErrorHR')}")
+            # ErrorHR bo'lsa — Microsoft so'rovni qayta ishlay olmadi.
+            ehr = j.get("ErrorHR")
+            if ehr:
+                # 80046703 = kiritilgan identifikator noto'g'ri formatda.
+                # Consumer login telefon raqamni qabul qilmaydi — faqat email/username.
+                if str(ehr).lower() in ("80046703", "0x80046703"):
+                    return unknown("telefon qo'llab-quvvatlanmaydi (email kerak)")
+                return error(f"ErrorHR={ehr}")
             ier = j.get("IfExistsResult", -1)
             if ier in (0, 6):
                 return found(f"IfExistsResult={ier}")
