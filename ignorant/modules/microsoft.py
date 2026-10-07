@@ -15,7 +15,9 @@ import re
 
 import aiohttp
 
-from ignorant.core.base import BaseChecker, Outcome, found, not_found, rate_limit, unknown
+from ignorant.core.base import (
+    BaseChecker, Outcome, error, found, not_found, rate_limit, unknown,
+)
 from ignorant.core.http import CHROME_UA, TIMEOUT
 
 _UAID_RE = re.compile(r'"uaid":"([^"]+)"')
@@ -27,6 +29,7 @@ class MicrosoftChecker(BaseChecker):
     name = "Microsoft"
     slug = "microsoft"
     reliable = True
+    status = "⚠️ ERROR_RESPONSE"
 
     async def check(self, session: aiohttp.ClientSession, phone: str) -> Outcome:
         async with session.get(
@@ -75,6 +78,9 @@ class MicrosoftChecker(BaseChecker):
                 j = json.loads(await r.text())
             except (json.JSONDecodeError, ValueError):
                 return unknown("JSON emas")
+            # v4.2 dan: ErrorHR bo'lsa — Microsoft xato qaytargan (masalan throttle).
+            if j.get("ErrorHR"):
+                return error(f"ErrorHR={j.get('ErrorHR')}")
             ier = j.get("IfExistsResult", -1)
             if ier in (0, 6):
                 return found(f"IfExistsResult={ier}")

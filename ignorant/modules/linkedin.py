@@ -16,7 +16,9 @@ import urllib.parse
 
 import aiohttp
 
-from ignorant.core.base import BaseChecker, Outcome, found, not_found, rate_limit, unknown
+from ignorant.core.base import (
+    BaseChecker, Outcome, error, found, not_found, rate_limit, unknown,
+)
 from ignorant.core.http import CHROME_UA, TIMEOUT
 
 _CSRF_RE = re.compile(r'csrfToken=([^&"\']+)')
@@ -27,6 +29,7 @@ class LinkedInChecker(BaseChecker):
     name = "LinkedIn"
     slug = "linkedin"
     reliable = False
+    status = "❌ ANTI_BOT"
 
     async def check(self, session: aiohttp.ClientSession, phone: str) -> Outcome:
         async with session.get(
@@ -34,11 +37,18 @@ class LinkedInChecker(BaseChecker):
             headers={"User-Agent": CHROME_UA, "Accept-Language": "en-US,en;q=0.9"},
             timeout=TIMEOUT,
         ) as r:
+            # v4.2 dan: status 999 = LinkedIn anti-bot himoyasi.
+            if r.status == 999:
+                return error("999 anti-bot")
             text = await r.text()
             cm = _CSRF_RE.search(text)
             pm = _PI_RE.search(text)
             csrf = cm.group(1) if cm else ""
             pi = pm.group(1) if pm else ""
+
+        # csrf topilmasa — anti-bot faollashgan, so'rov yuborishdan ma'no yo'q.
+        if not csrf:
+            return error("csrf yo'q (anti-bot)")
 
         async with session.post(
             "https://www.linkedin.com/uas/request-password-reset",
@@ -57,8 +67,8 @@ class LinkedInChecker(BaseChecker):
             },
             timeout=TIMEOUT, allow_redirects=True,
         ) as r:
-            if r.status == 429:
-                return rate_limit("429")
+            if r.status in (429, 999):
+                return rate_limit(str(r.status))
             final = str(r.url).lower()
             text = (await r.text()).lower()
             if "checkyouremail" in final or "check_your_email" in final:

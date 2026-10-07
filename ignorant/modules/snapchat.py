@@ -25,6 +25,7 @@ class SnapchatChecker(BaseChecker):
     name = "Snapchat"
     slug = "snapchat"
     reliable = False
+    status = "⚠️ hardened"
 
     async def check(self, session: aiohttp.ClientSession, phone: str) -> Outcome:
         import urllib.parse

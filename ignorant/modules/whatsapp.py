@@ -26,6 +26,7 @@ class WhatsAppChecker(BaseChecker):
     name = "WhatsApp"
     slug = "whatsapp"
     reliable = False  # ochiq existence-oracle mavjud emas
+    status = "❌ oracle yo'q"
 
     async def check(self, session: aiohttp.ClientSession, phone: str) -> Outcome:
         d = digits_only(phone)

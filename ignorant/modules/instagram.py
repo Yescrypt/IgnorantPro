@@ -17,7 +17,9 @@ import urllib.parse
 
 import aiohttp
 
-from ignorant.core.base import BaseChecker, Outcome, found, not_found, rate_limit, unknown
+from ignorant.core.base import (
+    BaseChecker, Outcome, error, found, not_found, rate_limit, unknown,
+)
 from ignorant.core.http import CHROME_UA, TIMEOUT
 
 _CSRF_RE = re.compile(r'"csrf_token":"([^"]+)"')
@@ -27,6 +29,7 @@ class InstagramChecker(BaseChecker):
     name = "Instagram"
     slug = "instagram"
     reliable = True
+    status = "❌ API_DOWN"
 
     async def check(self, session: aiohttp.ClientSession, phone: str) -> Outcome:
         # 1-qadam: csrf token
@@ -35,6 +38,9 @@ class InstagramChecker(BaseChecker):
             headers={"User-Agent": CHROME_UA, "Accept-Language": "en-US,en;q=0.9"},
             timeout=TIMEOUT,
         ) as r:
+            if r.status >= 500:
+                # Instagram API ishlamayapti (v4.2 da kuzatilgan 2024-12 holati).
+                return error(f"IG {r.status} (API down)")
             csrf = r.cookies.get("csrftoken")
             csrf = csrf.value if csrf else ""
             if not csrf:
@@ -73,15 +79,31 @@ class InstagramChecker(BaseChecker):
                 if j.get("message") == "No users found":
                     return not_found("lookup: No users found")
 
-        # 3-qadam: fallback — account recovery
-        async with session.post(
+        # 3-qadam: fallback — account recovery (bir nechta endpoint, v4.2 dan)
+        fallback_endpoints = (
             "https://www.instagram.com/accounts/account_recovery_send_ajax/",
-            data=urllib.parse.urlencode({"phone_number": phone, "phone_or_email": phone}),
-            headers=headers, timeout=TIMEOUT,
-        ) as r:
-            if r.status == 429:
-                return rate_limit("recovery 429")
-            text = await r.text()
+            "https://www.instagram.com/api/v1/accounts/send_recovery_flow_email/",
+        )
+        for endpoint in fallback_endpoints:
+            try:
+                async with session.post(
+                    endpoint,
+                    data=urllib.parse.urlencode({
+                        "phone_number": phone,
+                        "phone_or_email": phone,
+                        "user_id": "",
+                    }),
+                    headers=headers, timeout=TIMEOUT,
+                ) as r:
+                    if r.status == 429:
+                        return rate_limit("recovery 429")
+                    text = await r.text()
+            except Exception:  # noqa: BLE001 — keyingi endpointga o'tamiz
+                continue
+
+            # "ok" status + obfuscated/contact_point bo'lsagina FOUND.
+            # v4.2 dagi "har qanday 'sent'/'success' matni → FOUND" kengroq edi;
+            # obfuscated kontakt ko'rsatilgandagina ishonamiz.
             try:
                 j = json.loads(text)
                 if isinstance(j, dict) and j.get("status") == "ok" and (
@@ -90,7 +112,7 @@ class InstagramChecker(BaseChecker):
                     return found("recovery: ok + obfuscated")
             except (json.JSONDecodeError, ValueError):
                 pass
-            if "No users found" in text:
+            if "No users found" in text or "no users found" in text.lower():
                 return not_found("recovery: No users found")
 
         return unknown("aniq signal yo'q (endpoint o'zgargan bo'lishi mumkin)")

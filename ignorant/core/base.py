@@ -80,12 +80,15 @@ class BaseChecker:
         reliable: Platforma ishonchli "bor/yo'q" oracle beradimi?
                   False bo'lsa — platforma enumeration-hardened, natijalariga
                   ehtiyotkorlik bilan qarash kerak (UI buni belgilab ko'rsatadi).
+        status:   2024-12 empirik kuzatuv yorlig'i (masalan "✅ WORKING",
+                  "⚠️ RATE_LIMITED", "❌ API_DOWN"). Bo'sh bo'lsa noma'lum.
         phone_hint: Raqam qanday formatda kutilishi haqida eslatma.
     """
 
     name: str = "Base"
     slug: str = "base"
     reliable: bool = True
+    status: str = ""
     phone_hint: str = "E.164, masalan +998901234567"
 
     async def check(self, session, phone: str) -> Outcome:

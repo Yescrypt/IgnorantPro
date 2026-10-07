@@ -9,6 +9,8 @@ from __future__ import annotations
 import asyncio
 
 from ignorant.core.base import Result
+from ignorant.modules.instagram import InstagramChecker
+from ignorant.modules.linkedin import LinkedInChecker
 from ignorant.modules.microsoft import MicrosoftChecker
 from ignorant.modules.olx_uz import OlxUzChecker
 from ignorant.modules.snapchat import SnapchatChecker
@@ -46,6 +48,28 @@ def test_microsoft_unknown():
     assert run(MicrosoftChecker(), _ms_session(99)) is Result.UNKNOWN
 
 
+def test_microsoft_errorhr_is_error():
+    # v4.2 fix: ErrorHR bo'lsa → ERROR
+    s = FakeSession([
+        FakeResponse(200, '"uaid":"u1"'),
+        FakeResponse(200, '{"ErrorHR": 80049217}'),
+    ])
+    assert run(MicrosoftChecker(), s) is Result.ERROR
+
+
+# ─── Instagram / LinkedIn: API-down va anti-bot aniqlash ────────────
+def test_instagram_500_is_error():
+    # v4.2 fix: GET 500 → API down → ERROR
+    s = FakeSession([FakeResponse(500, "")])
+    assert run(InstagramChecker(), s) is Result.ERROR
+
+
+def test_linkedin_999_is_error():
+    # v4.2 fix: status 999 → anti-bot → ERROR
+    s = FakeSession([FakeResponse(999, "")])
+    assert run(LinkedInChecker(), s) is Result.ERROR
+
+
 # ─── Telegram: "OK" oracle, regression tekshiruvi ───────────────────
 def test_telegram_found():
     s = FakeSession([FakeResponse(200, "OK")])
@@ -61,6 +85,18 @@ def test_telegram_weird_short_is_unknown_not_found():
     # REGRESSIYA: eski kod status==200 va qisqa javobni FOUND derdi.
     s = FakeSession([FakeResponse(200, "xyz")])
     assert run(TelegramChecker(), s) is Result.UNKNOWN
+
+
+def test_telegram_json_random_hash_found():
+    # v4.2 fix: JSON {"random_hash": ...} → FOUND
+    s = FakeSession([FakeResponse(200, '{"random_hash": "abc123"}')])
+    assert run(TelegramChecker(), s) is Result.FOUND
+
+
+def test_telegram_json_error_message_not_found():
+    # v4.2 fix: JSON {"error_message": ...} → NOT_FOUND
+    s = FakeSession([FakeResponse(200, '{"error_message": "Invalid phone"}')])
+    assert run(TelegramChecker(), s) is Result.NOT_FOUND
 
 
 # ─── WhatsApp: hech qachon FOUND bermasligi kerak ───────────────────

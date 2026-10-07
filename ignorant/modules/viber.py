@@ -25,6 +25,7 @@ class ViberChecker(BaseChecker):
     name = "Viber"
     slug = "viber"
     reliable = False
+    status = "⚠️ UNSTABLE"
 
     async def check(self, session: aiohttp.ClientSession, phone: str) -> Outcome:
         async with session.get(

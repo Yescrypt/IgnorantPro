@@ -38,6 +38,7 @@ class TikTokChecker(BaseChecker):
     name = "TikTok"
     slug = "tiktok"
     reliable = False  # imzolangan parametr talab qilinadi — ishonchsiz
+    status = "⚠️ GEO_BLOCK"
 
     async def check(self, session: aiohttp.ClientSession, phone: str) -> Outcome:
         cc, num = split_cc(phone)

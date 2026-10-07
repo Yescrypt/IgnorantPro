@@ -33,6 +33,7 @@ class TwitterChecker(BaseChecker):
     name = "Twitter/X"
     slug = "twitter"
     reliable = False
+    status = "❌ BEARER/JS"
 
     async def check(self, session: aiohttp.ClientSession, phone: str) -> Outcome:
         # 1) Guest token

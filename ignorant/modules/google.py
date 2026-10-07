@@ -26,6 +26,7 @@ class GoogleChecker(BaseChecker):
     name = "Google"
     slug = "google"
     reliable = False
+    status = "❌ RECAPTCHA"
 
     async def check(self, session: aiohttp.ClientSession, phone: str) -> Outcome:
         async with session.get(
@@ -62,10 +63,12 @@ class GoogleChecker(BaseChecker):
                 return rate_limit("429")
             text = await r.text()
             low = text.lower()
-            if "recaptcha" in low or "invalid" in low:
-                return unknown("reCAPTCHA / INVALID")
-            # Google oqimida keyingi (parol) qadamga o'tish signali.
-            if '"gf.sis"' in text or "password" in low and "challenge" in low:
+            # Keyingi (parol/auth) qadamga o'tish signali → raqam mavjud.
+            if "selectauthmethod" in low or '"accounts.google.com"' in text or (
+                "password" in low and "challenge" in low
+            ):
                 return found("next step signal")
+            if "recaptcha" in low or "invalid_argument" in low:
+                return unknown("reCAPTCHA / INVALID_ARGUMENT")
             # Eski xavfli `200 and len>100 → FOUND` olib tashlandi.
             return unknown("aniq signal yo'q")

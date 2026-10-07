@@ -24,6 +24,7 @@ class OlxUzChecker(BaseChecker):
     name = "OLX UZ"
     slug = "olx_uz"
     reliable = True
+    status = "✅ WORKING"
     phone_hint = "E.164, odatda +998XXXXXXXXX"
 
     async def check(self, session: aiohttp.ClientSession, phone: str) -> Outcome:

@@ -40,7 +40,8 @@ def _print_list() -> None:
     for c in registry.all_checkers():
         mark = (f"{Fore.GREEN}ishonchli{Style.RESET_ALL}" if c.reliable
                 else f"{Fore.YELLOW}ishonchsiz{Style.RESET_ALL}")
-        print(f"  {c.slug:12} {c.name:14} [{mark}]")
+        status = f"  {c.status}" if c.status else ""
+        print(f"  {c.slug:12} {c.name:14} [{mark}]{status}")
 
 
 def main(argv: list[str] | None = None) -> int:
