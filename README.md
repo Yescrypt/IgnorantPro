@@ -1,3 +1,6 @@
+<img width="1024" height="434" alt="image" src="https://github.com/user-attachments/assets/a9e1850b-9406-46aa-9283-057b1f4b9730" />
+
+
 # Ignorant Pro
 
 Telefon raqam OSINT vositasi — bitta raqam 12 ta platformada ro'yxatdan
